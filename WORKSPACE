@@ -3,6 +3,13 @@ workspace(name = "butteraugli")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
+    name = "rules_cc",
+    sha256 = "458b658277ba51b4730ea7a2020efdf1c6dcadf7d30de72e37f4308277fa8c01",
+    urls = ["https://github.com/bazelbuild/rules_cc/archive/0.2.16.tar.gz"],
+    strip_prefix = "rules_cc-0.2.16",
+)
+
+http_archive(
     name = "png_archive",
     build_file = "@//:png.BUILD",
     sha256 = "e45ce5f68b1d80e2cb9a2b601605b374bdf51e1798ef1c2c2bd62131dfcf9eef",

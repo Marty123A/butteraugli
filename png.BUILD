@@ -1,6 +1,8 @@
 # Description:
 #   libpng is the official PNG reference library.
 
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
 licenses(["notice"])  # BSD/MIT-like license
 
 cc_library(
@@ -25,6 +27,11 @@ cc_library(
     hdrs = [
         "png.h",
         "pngconf.h",
+        "pngdebug.h",
+        "pnginfo.h",
+        "pnglibconf.h",
+        "pngpriv.h",
+        "pngstruct.h",
     ],
     includes = ["."],
     linkopts = ["-lm"],

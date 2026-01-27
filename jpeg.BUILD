@@ -1,6 +1,8 @@
 # Description:
 #   The Independent JPEG Group's JPEG runtime library.
 
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
 licenses(["notice"])  # custom notice-style license, see LICENSE
 
 cc_library(
@@ -69,21 +71,4 @@ cc_library(
     ],
     includes = ["."],
     visibility = ["//visibility:public"],
-)
-
-genrule(
-    name = "configure",
-    outs = ["jconfig.h"],
-    cmd = "cat <<EOF >$@\n" +
-          "#define HAVE_PROTOTYPES 1\n" +
-          "#define HAVE_UNSIGNED_CHAR 1\n" +
-          "#define HAVE_UNSIGNED_SHORT 1\n" +
-          "#define HAVE_STDDEF_H 1\n" +
-          "#define HAVE_STDLIB_H 1\n" +
-          "#ifdef WIN32\n" +
-          "#define INLINE __inline\n" +
-          "#else\n" +
-          "#define INLINE __inline__\n" +
-          "#endif\n" +
-          "EOF\n",
 )

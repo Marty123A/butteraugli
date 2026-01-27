@@ -1,0 +1,2 @@
+# Use Bzlmod; png/jpeg/zlib are provided by //:repos.bzl module extension.
+# To use WORKSPACE only instead, run: bazelisk build --noenable_bzlmod -c opt //:butteraugli
