@@ -7,6 +7,7 @@
 extern "C" {
 #include "png.h"
 #include "jpeglib.h"
+#include "webp/decode.h"
 }
 
 namespace butteraugli {
@@ -232,6 +233,67 @@ bool ReadJPEG(FILE* f, std::vector<Image8>* rgb) {
   return true;
 }
 
+// "rgb": cleared and filled with same-sized image planes (one per channel);
+// either RGB, or RGBA if the WebP has alpha.
+bool ReadWebP(FILE* f, std::vector<Image8>* rgb) {
+  rewind(f);
+  if (fseek(f, 0, SEEK_END) != 0) {
+    return false;
+  }
+  const long size = ftell(f);
+  if (size <= 0) {
+    return false;
+  }
+  rewind(f);
+  std::vector<uint8_t> data(static_cast<size_t>(size));
+  if (fread(data.data(), 1, static_cast<size_t>(size), f) !=
+      static_cast<size_t>(size)) {
+    return false;
+  }
+
+  int width = 0;
+  int height = 0;
+  uint8_t* rgba =
+      WebPDecodeRGBA(data.data(), data.size(), &width, &height);
+  if (rgba == nullptr) {
+    return false;
+  }
+
+  const size_t xsize = static_cast<size_t>(width);
+  const size_t ysize = static_cast<size_t>(height);
+  *rgb = CreatePlanes<uint8_t>(xsize, ysize, 3);
+
+  bool has_alpha = false;
+  for (size_t y = 0; y < ysize; ++y) {
+    const uint8_t* const BUTTERAUGLI_RESTRICT row_in = rgba + 4 * xsize * y;
+    uint8_t* const BUTTERAUGLI_RESTRICT row0 = (*rgb)[0].Row(y);
+    uint8_t* const BUTTERAUGLI_RESTRICT row1 = (*rgb)[1].Row(y);
+    uint8_t* const BUTTERAUGLI_RESTRICT row2 = (*rgb)[2].Row(y);
+    for (size_t x = 0; x < xsize; ++x) {
+      row0[x] = row_in[4 * x + 0];
+      row1[x] = row_in[4 * x + 1];
+      row2[x] = row_in[4 * x + 2];
+      if (row_in[4 * x + 3] != 255) {
+        has_alpha = true;
+      }
+    }
+  }
+
+  if (has_alpha) {
+    rgb->push_back(Image8(xsize, ysize));
+    for (size_t y = 0; y < ysize; ++y) {
+      const uint8_t* const BUTTERAUGLI_RESTRICT row_in = rgba + 4 * xsize * y;
+      uint8_t* const BUTTERAUGLI_RESTRICT row3 = (*rgb)[3].Row(y);
+      for (size_t x = 0; x < xsize; ++x) {
+        row3[x] = row_in[4 * x + 3];
+      }
+    }
+  }
+
+  WebPFree(rgba);
+  return true;
+}
+
 // Translate R, G, B channels from sRGB to linear space. If an alpha channel
 // is present, overlay the image over a black or white background. Overlaying
 // is done in the sRGB space; while technically incorrect, this is aligned with
@@ -287,20 +349,36 @@ std::vector<Image8> ReadImageOrDie(const char* filename) {
     fprintf(stderr, "Cannot open %s\n", filename);
     exit(1);
   }
-  unsigned char magic[2];
-  if (fread(magic, 1, 2, f) != 2) {
+  unsigned char magic[12];
+  size_t n = fread(magic, 1, 12, f);
+  if (n < 2) {
     fprintf(stderr, "Cannot read from %s\n", filename);
+    fclose(f);
     exit(1);
   }
   if (magic[0] == 0xFF && magic[1] == 0xD8) {
+    rewind(f);
     if (!ReadJPEG(f, &rgb)) {
       fprintf(stderr, "File %s is a malformed JPEG.\n", filename);
+      fclose(f);
+      exit(1);
+    }
+  } else if (n >= 12 && magic[0] == 'R' && magic[1] == 'I' && magic[2] == 'F' &&
+             magic[3] == 'F' && magic[8] == 'W' && magic[9] == 'E' &&
+             magic[10] == 'B' && magic[11] == 'P') {
+    rewind(f);
+    if (!ReadWebP(f, &rgb)) {
+      fprintf(stderr, "File %s is a malformed WebP.\n", filename);
+      fclose(f);
       exit(1);
     }
   } else {
+    rewind(f);
     if (!ReadPNG(f, &rgb)) {
-      fprintf(stderr, "File %s is neither a valid JPEG nor a valid PNG.\n",
+      fprintf(stderr,
+              "File %s is neither a valid JPEG, WebP nor PNG.\n",
               filename);
+      fclose(f);
       exit(1);
     }
   }
@@ -362,7 +440,7 @@ void CreateHeatMapImage(const ImageF& distmap, double good_threshold,
 int Run(int argc, char* argv[]) {
   if (argc != 3 && argc != 4) {
     fprintf(stderr,
-            "Usage: %s {image1.(png|jpg|jpeg)} {image2.(png|jpg|jpeg)} "
+            "Usage: %s {image1.(png|jpg|jpeg|webp)} {image2.(png|jpg|jpeg|webp)} "
             "[heatmap.ppm]\n",
             argv[0]);
     return 1;

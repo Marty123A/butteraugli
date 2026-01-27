@@ -44,9 +44,10 @@ Install [Bazel](http://bazel.build) by following the
 library, depend on the `//:butteraugli_lib` target.
 
 Alternatively, you can use the Makefile provided in the `butteraugli` directory,
-after ensuring that [libpng](http://www.libpng.org/) and
-[libjpeg](http://ijg.org/) are installed. On some systems you might need to also
-install corresponding `-dev` packages.
+after ensuring that [libpng](http://www.libpng.org/),
+[libjpeg](http://ijg.org/) and [libwebp](https://developers.google.com/speed/webp)
+are installed. On some systems you might need to also install corresponding
+`-dev` packages.
 
 The code is portable and also compiles on Windows after defining
 `_CRT_SECURE_NO_WARNINGS` in the project settings.
@@ -54,15 +55,16 @@ The code is portable and also compiles on Windows after defining
 ## Command-line utility {#cmdline-tool}
 
 Butteraugli, apart from the library, comes bundled with a comparison tool. The
-comparison tool supports PNG and JPG images as inputs. To compare images, run:
+comparison tool supports PNG, JPEG and WebP images as inputs. To compare
+images, run:
 
 ```
-butteraugli image1.{png|jpg} image2.{png|jpg}
+butteraugli image1.{png|jpg|webp} image2.{png|jpg|webp}
 ```
 
 The tool can also produce a heatmap of differences between images. The heatmap
 will be output as a PNM image. To produce one, run:
 
 ```
-butteraugli image1.{png|jpg} image2.{png|jpg} heatmap.pnm
+butteraugli image1.{png|jpg|webp} image2.{png|jpg|webp} heatmap.pnm
 ```

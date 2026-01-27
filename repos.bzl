@@ -37,6 +37,42 @@ png_archive = repository_rule(
     implementation = _png_archive_impl,
 )
 
+def _webp_archive_impl(ctx):
+    """Fetch libwebp and add minimal src/webp/config.h for decoder build."""
+    ctx.download_and_extract(
+        url = [
+            "https://mirror.bazel.build/github.com/webmproject/libwebp/archive/refs/tags/v1.3.2.tar.gz",
+            "https://github.com/webmproject/libwebp/archive/refs/tags/v1.3.2.tar.gz",
+        ],
+        # SHA256 for github.com/webmproject/libwebp/archive/refs/tags/v1.3.2.tar.gz
+        sha256 = "c2c2f521fa468e3c5949ab698c2da410f5dce1c5e99f5ad9e70e0e8446b86505",
+        stripPrefix = "libwebp-1.3.2",
+    )
+    # Minimal config.h for decoder (no SIMD, no extra deps).
+    # Use preprocessor so MSVC gets intrinsics and GCC/Clang use builtins (avoids ctx.os caching).
+    config_h = """/* Minimal config for butteraugli decoder-only build */
+#ifndef WEBP_CONFIG_H_
+#define WEBP_CONFIG_H_
+#define HAVE_CONFIG_H 1
+#ifdef _MSC_VER
+#include <stdlib.h>
+#define __builtin_bswap16(x) _byteswap_ushort(x)
+#define __builtin_bswap32(x) _byteswap_ulong(x)
+#define __builtin_bswap64(x) _byteswap_uint64(x)
+#else
+#define HAVE_BUILTIN_BSWAP16 1
+#define HAVE_BUILTIN_BSWAP32 1
+#define HAVE_BUILTIN_BSWAP64 1
+#endif
+#endif
+"""
+    ctx.file("src/webp/config.h", content = config_h)
+    ctx.file("BUILD.bazel", content = ctx.read(Label("//:webp.BUILD")))
+
+webp_archive = repository_rule(
+    implementation = _webp_archive_impl,
+)
+
 def _butteraugli_deps_impl(mctx):
     # Order: zlib first (png depends on it), then png and jpeg.
     http_archive(
@@ -51,6 +87,7 @@ def _butteraugli_deps_impl(mctx):
     )
     png_archive(name = "png_archive")
     jpeg_archive(name = "jpeg_archive")
+    webp_archive(name = "webp_archive")
 
 butteraugli_deps = module_extension(
     implementation = _butteraugli_deps_impl,

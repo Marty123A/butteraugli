@@ -11,4 +11,4 @@ bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "rules_cc", version = "0.2.14")
 
 butteraugli_deps = use_extension("//:repos.bzl", "butteraugli_deps")
-use_repo(butteraugli_deps, "jpeg_archive", "png_archive", "zlib_archive")
+use_repo(butteraugli_deps, "jpeg_archive", "png_archive", "webp_archive", "zlib_archive")

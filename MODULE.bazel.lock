@@ -189,7 +189,7 @@
   "moduleExtensions": {
     "//:repos.bzl%butteraugli_deps": {
       "general": {
-        "bzlTransitiveDigest": "zDE3bb1gX1c1VyJk1YLO2CuEL6SM5ZyGHorB8Ir1vcA=",
+        "bzlTransitiveDigest": "MJJVZydpIML/uI+9m4NpPmdN7dBaVY+G2Kenk1cAO08=",
         "usagesDigest": "AsjFRx+NP5UsRy2HH0YqtdnAwb29R3QXhPudvNd5hG4=",
         "recordedInputs": [
           "REPO_MAPPING:,bazel_tools bazel_tools"
@@ -213,6 +213,10 @@
           },
           "jpeg_archive": {
             "repoRuleId": "@@//:repos.bzl%jpeg_archive",
+            "attributes": {}
+          },
+          "webp_archive": {
+            "repoRuleId": "@@//:repos.bzl%webp_archive",
             "attributes": {}
           }
         }

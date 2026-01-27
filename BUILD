@@ -37,5 +37,6 @@ cc_binary(
         ":butteraugli_lib",
         "@jpeg_archive//:jpeg",
         "@png_archive//:png",
+        "@webp_archive//:webp",
     ],
 )
