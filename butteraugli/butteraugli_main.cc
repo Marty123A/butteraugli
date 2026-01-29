@@ -8,6 +8,7 @@ extern "C" {
 #include "png.h"
 #include "jpeglib.h"
 #include "webp/decode.h"
+#include "avif/avif.h"
 }
 
 namespace butteraugli {
@@ -294,6 +295,115 @@ bool ReadWebP(FILE* f, std::vector<Image8>* rgb) {
   return true;
 }
 
+// "rgb": cleared and filled with same-sized image planes (one per channel);
+// either RGB, or RGBA if the AVIF has alpha.
+bool ReadAVIF(FILE* f, std::vector<Image8>* rgb) {
+  rewind(f);
+  if (fseek(f, 0, SEEK_END) != 0) {
+    return false;
+  }
+  const long size = ftell(f);
+  if (size <= 0) {
+    return false;
+  }
+  rewind(f);
+  std::vector<uint8_t> data(static_cast<size_t>(size));
+  if (fread(data.data(), 1, static_cast<size_t>(size), f) !=
+      static_cast<size_t>(size)) {
+    return false;
+  }
+
+  avifDecoder* decoder = avifDecoderCreate();
+  if (decoder == nullptr) {
+    return false;
+  }
+
+  avifResult result = avifDecoderSetIOMemory(decoder, data.data(), data.size());
+  if (result != AVIF_RESULT_OK) {
+    avifDecoderDestroy(decoder);
+    return false;
+  }
+
+  result = avifDecoderParse(decoder);
+  if (result != AVIF_RESULT_OK) {
+    avifDecoderDestroy(decoder);
+    return false;
+  }
+
+  result = avifDecoderNextImage(decoder);
+  if (result != AVIF_RESULT_OK) {
+    avifDecoderDestroy(decoder);
+    return false;
+  }
+
+  avifImage* image = decoder->image;
+  const uint32_t width = image->width;
+  const uint32_t height = image->height;
+
+  // Convert YUV to RGB
+  avifRGBImage rgb_image;
+  avifRGBImageSetDefaults(&rgb_image, image);
+  rgb_image.format = AVIF_RGB_FORMAT_RGBA;
+  rgb_image.depth = 8;
+  avifRGBImageAllocatePixels(&rgb_image);
+
+  result = avifImageYUVToRGB(image, &rgb_image);
+  if (result != AVIF_RESULT_OK) {
+    avifRGBImageFreePixels(&rgb_image);
+    avifDecoderDestroy(decoder);
+    return false;
+  }
+
+  const size_t xsize = static_cast<size_t>(width);
+  const size_t ysize = static_cast<size_t>(height);
+  *rgb = CreatePlanes<uint8_t>(xsize, ysize, 3);
+
+  bool has_alpha = (image->alphaPlane != nullptr);
+  if (has_alpha) {
+    // Check if alpha channel has non-opaque pixels
+    for (size_t y = 0; y < ysize; ++y) {
+      const uint8_t* const BUTTERAUGLI_RESTRICT row_in =
+          rgb_image.pixels + rgb_image.rowBytes * y;
+      for (size_t x = 0; x < xsize; ++x) {
+        if (row_in[4 * x + 3] != 255) {
+          has_alpha = true;
+          break;
+        }
+      }
+      if (has_alpha) break;
+    }
+  }
+
+  for (size_t y = 0; y < ysize; ++y) {
+    const uint8_t* const BUTTERAUGLI_RESTRICT row_in =
+        rgb_image.pixels + rgb_image.rowBytes * y;
+    uint8_t* const BUTTERAUGLI_RESTRICT row0 = (*rgb)[0].Row(y);
+    uint8_t* const BUTTERAUGLI_RESTRICT row1 = (*rgb)[1].Row(y);
+    uint8_t* const BUTTERAUGLI_RESTRICT row2 = (*rgb)[2].Row(y);
+    for (size_t x = 0; x < xsize; ++x) {
+      row0[x] = row_in[4 * x + 0];
+      row1[x] = row_in[4 * x + 1];
+      row2[x] = row_in[4 * x + 2];
+    }
+  }
+
+  if (has_alpha) {
+    rgb->push_back(Image8(xsize, ysize));
+    for (size_t y = 0; y < ysize; ++y) {
+      const uint8_t* const BUTTERAUGLI_RESTRICT row_in =
+          rgb_image.pixels + rgb_image.rowBytes * y;
+      uint8_t* const BUTTERAUGLI_RESTRICT row3 = (*rgb)[3].Row(y);
+      for (size_t x = 0; x < xsize; ++x) {
+        row3[x] = row_in[4 * x + 3];
+      }
+    }
+  }
+
+  avifRGBImageFreePixels(&rgb_image);
+  avifDecoderDestroy(decoder);
+  return true;
+}
+
 // Translate R, G, B channels from sRGB to linear space. If an alpha channel
 // is present, overlay the image over a black or white background. Overlaying
 // is done in the sRGB space; while technically incorrect, this is aligned with
@@ -349,8 +459,8 @@ std::vector<Image8> ReadImageOrDie(const char* filename) {
     fprintf(stderr, "Cannot open %s\n", filename);
     exit(1);
   }
-  unsigned char magic[12];
-  size_t n = fread(magic, 1, 12, f);
+  unsigned char magic[16];
+  size_t n = fread(magic, 1, 16, f);
   if (n < 2) {
     fprintf(stderr, "Cannot read from %s\n", filename);
     fclose(f);
@@ -372,11 +482,22 @@ std::vector<Image8> ReadImageOrDie(const char* filename) {
       fclose(f);
       exit(1);
     }
+  } else if (n >= 16 && magic[4] == 'f' && magic[5] == 't' && magic[6] == 'y' &&
+             magic[7] == 'p' && ((magic[8] == 'a' && magic[9] == 'v' &&
+                                  magic[10] == 'i' && magic[11] == 'f') ||
+                                 (magic[8] == 'a' && magic[9] == 'v' &&
+                                  magic[10] == 'i' && magic[11] == 's'))) {
+    rewind(f);
+    if (!ReadAVIF(f, &rgb)) {
+      fprintf(stderr, "File %s is a malformed AVIF.\n", filename);
+      fclose(f);
+      exit(1);
+    }
   } else {
     rewind(f);
     if (!ReadPNG(f, &rgb)) {
       fprintf(stderr,
-              "File %s is neither a valid JPEG, WebP nor PNG.\n",
+              "File %s is neither a valid JPEG, WebP, AVIF nor PNG.\n",
               filename);
       fclose(f);
       exit(1);
@@ -440,7 +561,7 @@ void CreateHeatMapImage(const ImageF& distmap, double good_threshold,
 int Run(int argc, char* argv[]) {
   if (argc != 3 && argc != 4) {
     fprintf(stderr,
-            "Usage: %s {image1.(png|jpg|jpeg|webp)} {image2.(png|jpg|jpeg|webp)} "
+            "Usage: %s {image1.(png|jpg|jpeg|webp|avif)} {image2.(png|jpg|jpeg|webp|avif)} "
             "[heatmap.ppm]\n",
             argv[0]);
     return 1;

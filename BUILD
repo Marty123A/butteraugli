@@ -38,5 +38,6 @@ cc_binary(
         "@jpeg_archive//:jpeg",
         "@png_archive//:png",
         "@webp_archive//:webp",
+        "@avif_archive//:avif",
     ],
 )

@@ -1,4 +1,4 @@
-LDLIBS += -lpng -ljpeg -lwebp
+LDLIBS += -lpng -ljpeg -lwebp -lavif
 CXXFLAGS += -std=c++11 -I..
 LINK.o = $(LINK.cc)
 
