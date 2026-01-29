@@ -189,7 +189,7 @@
   "moduleExtensions": {
     "//:repos.bzl%butteraugli_deps": {
       "general": {
-        "bzlTransitiveDigest": "XgWQN7WAxWAvY5hca7ybAImqr+ZFFs/N9tU8i9Glll8=",
+        "bzlTransitiveDigest": "y5fk5ii4uPJFRMRl0UXUHbOUJezItrrsMKGrEKvU8fk=",
         "usagesDigest": "AsjFRx+NP5UsRy2HH0YqtdnAwb29R3QXhPudvNd5hG4=",
         "recordedInputs": [
           "REPO_MAPPING:,bazel_tools bazel_tools"
