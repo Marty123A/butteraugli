@@ -23,11 +23,11 @@ def _png_archive_impl(ctx):
     """Fetch libpng and add pnglibconf.h from scripts/pnglibconf.h.prebuilt."""
     ctx.download_and_extract(
         url = [
-            "https://mirror.bazel.build/github.com/glennrp/libpng/archive/v1.6.34.tar.gz",
-            "https://github.com/glennrp/libpng/archive/v1.6.34.tar.gz",
+            "https://mirror.bazel.build/github.com/pnggroup/libpng/archive/refs/tags/v1.6.43.tar.gz",
+            "https://github.com/pnggroup/libpng/archive/refs/tags/v1.6.43.tar.gz",
         ],
-        sha256 = "e45ce5f68b1d80e2cb9a2b601605b374bdf51e1798ef1c2c2bd62131dfcf9eef",
-        stripPrefix = "libpng-1.6.34",
+        sha256 = "fecc95b46cf05e8e3fc8a414750e0ba5aad00d89e9fdf175e94ff041caf1a03a",
+        stripPrefix = "libpng-1.6.43",
     )
     # libpng needs pnglibconf.h; use prebuilt to avoid subprocess on Windows.
     ctx.file("pnglibconf.h", content = ctx.read("scripts/pnglibconf.h.prebuilt"))
@@ -114,13 +114,50 @@ extern "C" {
 #endif
 """
     ctx.file("vcs_version.h", content = vcs_version_h)
-    # Generate minimal config.h for decoder build
+    # Generate config.h for decoder build with platform detection
+    # NOTE: We disable architecture-specific SIMD optimizations for simplicity
+    # (no ARCH_X86, ARCH_AARCH64, etc.) to avoid needing assembly sources
     config_h = """#ifndef DAV1D_CONFIG_H
 #define DAV1D_CONFIG_H
 
 #define CONFIG_8BPC 1
 #define CONFIG_16BPC 0
 #define BITDEPTH 8
+
+/* Disable architecture-specific SIMD optimizations (use C fallbacks only)
+ * This avoids needing to include arch-specific assembly/intrinsics sources */
+#define ARCH_X86 0
+#define ARCH_X86_32 0
+#define ARCH_X86_64 0
+#define ARCH_AARCH64 0
+#define ARCH_ARM 0
+#define ARCH_PPC64LE 0
+#define ARCH_RISCV 0
+#define ARCH_LOONGARCH 0
+
+/* Platform-specific settings */
+#if defined(_WIN32)
+/* Windows has memalign via _aligned_malloc */
+#define HAVE_ALIGNED_MALLOC 1
+#define UNICODE 1
+#define _UNICODE 1
+#define _CRT_SECURE_NO_WARNINGS 1
+#elif defined(__APPLE__)
+/* macOS/iOS - no malloc.h, use posix_memalign from stdlib.h */
+#define HAVE_UNISTD_H 1
+#define HAVE_POSIX_MEMALIGN 1
+#define HAVE_CLOCK_GETTIME 1
+#else
+/* Linux and other Unix */
+#define HAVE_UNISTD_H 1
+#define HAVE_POSIX_MEMALIGN 1
+#define HAVE_CLOCK_GETTIME 1
+#endif
+
+/* Threading support */
+#if !defined(_WIN32)
+#define HAVE_PTHREAD_H 1
+#endif
 
 #endif
 """
@@ -143,6 +180,7 @@ def _avif_archive_impl(ctx):
         stripPrefix = "libavif-1.3.0",
     )
     # Create stub implementations for libyuv functions
+    # These stubs match libavif v1.3.0 API
     avif_stubs = """/* Stub implementations for libavif functions that require libyuv/libsharpyuv */
 #include "avif/avif.h"
 
@@ -166,15 +204,18 @@ avifResult avifRGBImageToF16LibYUV(const avifRGBImage * rgb, avifRGBImage * rgb1
     return AVIF_RESULT_NOT_IMPLEMENTED;
 }
 
-avifResult avifImageScaleWithLimit(const avifImage * image, avifImage * imageScaled,
-                                    uint32_t imageWidthLimit, uint32_t imageHeightLimit,
-                                    avifDiagnostics * diag) {
-    (void)image; (void)imageScaled; (void)imageWidthLimit; (void)imageHeightLimit; (void)diag;
+/* Internal scaling function with size limits - called by avifImageScale and internally */
+avifResult avifImageScaleWithLimit(avifImage * image, uint32_t dstWidth, uint32_t dstHeight,
+                                   uint32_t imageSizeLimit, uint32_t imageDimensionLimit,
+                                   avifDiagnostics * diag) {
+    (void)image; (void)dstWidth; (void)dstHeight;
+    (void)imageSizeLimit; (void)imageDimensionLimit; (void)diag;
     return AVIF_RESULT_NOT_IMPLEMENTED;
 }
 
-avifResult avifImageScale(const avifImage * image, avifImage * imageScaled, avifDiagnostics * diag) {
-    (void)image; (void)imageScaled; (void)diag;
+/* avifImageScale scales the YUV/A planes in-place. Public API in libavif 1.3.0 */
+avifResult avifImageScale(avifImage * image, uint32_t dstWidth, uint32_t dstHeight, avifDiagnostics * diag) {
+    (void)image; (void)dstWidth; (void)dstHeight; (void)diag;
     return AVIF_RESULT_NOT_IMPLEMENTED;
 }
 
@@ -198,11 +239,12 @@ def _butteraugli_deps_impl(mctx):
     http_archive(
         name = "zlib_archive",
         build_file = "@//:zlib.BUILD",
-        sha256 = "c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1",
-        strip_prefix = "zlib-1.2.11",
+        sha256 = "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+        strip_prefix = "zlib-1.3.1",
         urls = [
-            "https://mirror.bazel.build/zlib.net/zlib-1.2.11.tar.gz",
-            "https://zlib.net/zlib-1.2.11.tar.gz",
+            "https://mirror.bazel.build/zlib.net/zlib-1.3.1.tar.gz",
+            "https://zlib.net/zlib-1.3.1.tar.gz",
+            "https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz",
         ],
     )
     png_archive(name = "png_archive")

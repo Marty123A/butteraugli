@@ -10,8 +10,13 @@ config_setting(
     constraint_values = ["@platforms//os:windows"],
 )
 
+config_setting(
+    name = "macos",
+    constraint_values = ["@platforms//os:macos"],
+)
+
 # Core decoder sources from dav1d meson.build
-_DAV1D_SRCS = [
+_DAV1D_SRCS_COMMON = [
     "src/cdf.c",
     "src/cpu.c",
     "src/data.c",
@@ -36,8 +41,6 @@ _DAV1D_SRCS = [
     "src/thread_task.c",
     "src/warpmv.c",
     "src/wedge.c",
-    # Windows threading support
-    "src/win32/thread.c",
     # Template sources (compiled for each bitdepth)
     "src/cdef_apply_tmpl.c",
     "src/cdef_tmpl.c",
@@ -52,6 +55,11 @@ _DAV1D_SRCS = [
     "src/lr_apply_tmpl.c",
     "src/mc_tmpl.c",
     "src/recon_tmpl.c",
+]
+
+# Windows-specific threading source
+_DAV1D_SRCS_WINDOWS = [
+    "src/win32/thread.c",
 ]
 
 _DAV1D_HDRS = [
@@ -115,7 +123,10 @@ _DAV1D_HDRS = [
 
 cc_library(
     name = "dav1d",
-    srcs = _DAV1D_SRCS,
+    srcs = _DAV1D_SRCS_COMMON + select({
+        ":windows": _DAV1D_SRCS_WINDOWS,
+        "//conditions:default": [],
+    }),
     hdrs = _DAV1D_HDRS,
     includes = ["include", "."],
     # dav1d requires C11 for atomics support

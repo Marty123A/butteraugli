@@ -5,6 +5,16 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 
 licenses(["notice"])  # BSD/MIT-like license
 
+config_setting(
+    name = "macos",
+    constraint_values = ["@platforms//os:macos"],
+)
+
+config_setting(
+    name = "windows",
+    constraint_values = ["@platforms//os:windows"],
+)
+
 cc_library(
     name = "png",
     srcs = [
@@ -34,7 +44,16 @@ cc_library(
         "pngstruct.h",
     ],
     includes = ["."],
-    linkopts = ["-lm"],
+    # Disable ARM NEON optimizations to avoid needing arm/ source files
+    # This uses pure C implementation which works on all platforms
+    local_defines = select({
+        ":macos": ["PNG_ARM_NEON_OPT=0"],
+        "//conditions:default": [],
+    }),
+    linkopts = select({
+        ":windows": [],
+        "//conditions:default": ["-lm"],
+    }),
     visibility = ["//visibility:public"],
     deps = ["@zlib_archive//:zlib"],
 )

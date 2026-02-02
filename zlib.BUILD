@@ -4,6 +4,11 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 
 licenses(["notice"])  # BSD/MIT-like license (for zlib)
 
+config_setting(
+    name = "macos",
+    constraint_values = ["@platforms//os:macos"],
+)
+
 cc_library(
     name = "zlib",
     srcs = [
@@ -35,4 +40,9 @@ cc_library(
     ],
     hdrs = ["zlib.h"],
     includes = ["."],
+    # Ensure proper platform detection on modern systems
+    local_defines = select({
+        ":macos": ["HAVE_UNISTD_H", "HAVE_STDARG_H"],
+        "//conditions:default": [],
+    }),
 )
